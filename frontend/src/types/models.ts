@@ -18,12 +18,14 @@ export interface ApiResponse<T> {
   code: number | string;
   message: string;
   data: T;
+  traceId?: string;
 }
 
 export interface ApiErrorResponse {
   code: ApiErrorCode | number | string;
   message: string;
   details?: unknown;
+  traceId?: string;
 }
 
 export interface MutationState<T> {

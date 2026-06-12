@@ -13,5 +13,8 @@ export const env = {
   ACCESS_TOKEN_EXPIRES_IN: process.env.ACCESS_TOKEN_EXPIRES_IN ?? "15m",
   REFRESH_TOKEN_EXPIRES_IN: process.env.REFRESH_TOKEN_EXPIRES_IN ?? "7d",
   UPLOAD_DIR: process.env.UPLOAD_DIR ?? path.resolve(process.cwd(), "uploads"),
-  MEDIA_PUBLIC_PREFIX: process.env.MEDIA_PUBLIC_PREFIX ?? `http://localhost:${PORT}`
+  MEDIA_PUBLIC_PREFIX: process.env.MEDIA_PUBLIC_PREFIX ?? `http://localhost:${PORT}`,
+  SLOW_REQUEST_THRESHOLD_MS: Number(process.env.SLOW_REQUEST_THRESHOLD_MS ?? 1000),
+  SLOW_QUERY_THRESHOLD_MS: Number(process.env.SLOW_QUERY_THRESHOLD_MS ?? 200),
+  LOG_QUERIES: process.env.LOG_QUERIES === "true"
 } as const;

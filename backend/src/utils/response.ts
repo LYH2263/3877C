@@ -1,10 +1,14 @@
 import type { Response } from "express";
 
+import { getTraceId } from "./trace-context";
+
 export function ok<T>(res: Response, data: T, message = "ok", status = 200) {
+  const traceId = getTraceId();
   return res.status(status).json({
     code: 0,
     message,
-    data
+    data,
+    ...(traceId ? { traceId } : {})
   });
 }
 
@@ -38,9 +42,11 @@ function resolveErrorCode(status: number): ApiErrorCode {
 }
 
 export function fail(res: Response, status: number, message: string, details?: unknown, code?: ApiErrorCode) {
+  const traceId = getTraceId();
   return res.status(status).json({
     code: code ?? resolveErrorCode(status),
     message,
-    ...(details ? { details } : {})
+    ...(details ? { details } : {}),
+    ...(traceId ? { traceId } : {})
   });
 }

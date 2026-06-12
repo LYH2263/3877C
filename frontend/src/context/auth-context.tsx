@@ -11,7 +11,7 @@ import { toast } from "sonner";
 
 import { getMe, login as apiLogin, logout as apiLogout, register as apiRegister, type LoginInput, type RegisterInput } from "@/api/auth";
 import { subscribeAuthEvent } from "@/lib/auth-events";
-import { parseApiError } from "@/lib/api-error";
+import { toastApiError } from "@/lib/toast-error";
 import type { User } from "@/types/models";
 
 interface AuthContextValue {
@@ -56,8 +56,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUser(payload.user);
       toast.success("登录成功，欢迎回来");
     } catch (error) {
-      const parsed = parseApiError(error);
-      toast.error(parsed.message || "登录失败，请稍后重试");
+      toastApiError(error, "登录失败，请稍后重试");
       throw error;
     }
   }, []);
@@ -68,8 +67,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUser(payload.user);
       toast.success("注册成功，已自动登录");
     } catch (error) {
-      const parsed = parseApiError(error);
-      toast.error(parsed.message || "注册失败，请稍后重试");
+      toastApiError(error, "注册失败，请稍后重试");
       throw error;
     }
   }, []);
@@ -80,8 +78,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setUser(null);
       toast.success("已退出登录");
     } catch (error) {
-      const parsed = parseApiError(error);
-      toast.error(parsed.message || "退出失败，请稍后重试");
+      toastApiError(error, "退出失败，请稍后重试");
       throw error;
     }
   }, []);

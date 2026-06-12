@@ -6,9 +6,10 @@ import cors from "cors";
 import express from "express";
 
 import { env } from "./config/env";
-import { optionalAuth } from "./middleware/auth";
 import { errorHandler } from "./middleware/error-handler";
 import { notFound } from "./middleware/not-found";
+import { requestLogger } from "./middleware/request-logger";
+import { optionalAuth } from "./middleware/auth";
 import { authRouter } from "./modules/auth/auth.routes";
 import { creatorRouter } from "./modules/creator/creator.routes";
 import { discoveryRouter } from "./modules/discovery/discovery.routes";
@@ -19,15 +20,19 @@ import { topicsRouter } from "./modules/topics/topics.routes";
 import { usersRouter } from "./modules/users/users.routes";
 import { messagesRouter } from "./modules/messages/messages.routes";
 import { ok } from "./utils/response";
+import { TRACE_ID_HEADER } from "./utils/trace-context";
 
 const app = express();
 
 fs.mkdirSync(env.UPLOAD_DIR, { recursive: true });
 
+app.use(requestLogger);
+
 app.use(
   cors({
     origin: env.CORS_ORIGIN,
-    credentials: true
+    credentials: true,
+    exposedHeaders: [TRACE_ID_HEADER]
   })
 );
 app.use(express.json({ limit: "2mb" }));
