@@ -10,6 +10,8 @@ const dashboardQuerySchema = z.object({
   days: z.coerce.number().min(3).max(30).default(7)
 });
 
+const SERVER_TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 function toDateKey(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -32,15 +34,19 @@ function buildDateRange(days: number) {
   return { start, range };
 }
 
-function countByDate(items: Array<{ createdAt: Date }>, range: string[]) {
+interface DailyCountRow {
+  date_key: string;
+  count: number;
+}
+
+function fillMissingDays(rows: DailyCountRow[], range: string[]): Record<string, number> {
   const base = Object.fromEntries(range.map((key) => [key, 0]));
-  return items.reduce<Record<string, number>>((acc, item) => {
-    const key = toDateKey(item.createdAt);
-    if (key in acc) {
-      acc[key] += 1;
+  for (const row of rows) {
+    if (row.date_key in base) {
+      base[row.date_key] = Number(row.count);
     }
-    return acc;
-  }, base);
+  }
+  return base;
 }
 
 export const creatorRouter = Router();
@@ -68,7 +74,7 @@ creatorRouter.get("/dashboard", async (req, res) => {
 
   const { start, range } = buildDateRange(days);
 
-  const [postsAgg, followersIncrement, postsInRange, likesInRange, commentsInRange, repostsInRange, topPosts] = await Promise.all([
+  const [postsAgg, followersIncrement, postsByDateRaw, likesByDateRaw, commentsByDateRaw, repostsByDateRaw, topPosts] = await Promise.all([
     prisma.post.aggregate({
       where: { authorId: userId },
       _count: { id: true },
@@ -84,34 +90,49 @@ creatorRouter.get("/dashboard", async (req, res) => {
         createdAt: { gte: start }
       }
     }),
-    prisma.post.findMany({
-      where: {
-        authorId: userId,
-        createdAt: { gte: start }
-      },
-      select: { createdAt: true }
-    }),
-    prisma.like.findMany({
-      where: {
-        createdAt: { gte: start },
-        post: { authorId: userId }
-      },
-      select: { createdAt: true }
-    }),
-    prisma.comment.findMany({
-      where: {
-        createdAt: { gte: start },
-        post: { authorId: userId }
-      },
-      select: { createdAt: true }
-    }),
-    prisma.repost.findMany({
-      where: {
-        createdAt: { gte: start },
-        post: { authorId: userId }
-      },
-      select: { createdAt: true }
-    }),
+    prisma.$queryRaw<DailyCountRow[]>`
+      SELECT
+        to_char(date_trunc('day', "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE}), 'YYYY-MM-DD') as date_key,
+        COUNT(*)::integer as count
+      FROM "Post"
+      WHERE "authorId" = ${userId}
+        AND "createdAt" >= ${start}
+      GROUP BY date_trunc('day', "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE})
+      ORDER BY date_trunc('day', "createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE})
+    `,
+    prisma.$queryRaw<DailyCountRow[]>`
+      SELECT
+        to_char(date_trunc('day', l."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE}), 'YYYY-MM-DD') as date_key,
+        COUNT(*)::integer as count
+      FROM "Like" l
+      JOIN "Post" p ON l."postId" = p.id
+      WHERE p."authorId" = ${userId}
+        AND l."createdAt" >= ${start}
+      GROUP BY date_trunc('day', l."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE})
+      ORDER BY date_trunc('day', l."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE})
+    `,
+    prisma.$queryRaw<DailyCountRow[]>`
+      SELECT
+        to_char(date_trunc('day', c."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE}), 'YYYY-MM-DD') as date_key,
+        COUNT(*)::integer as count
+      FROM "Comment" c
+      JOIN "Post" p ON c."postId" = p.id
+      WHERE p."authorId" = ${userId}
+        AND c."createdAt" >= ${start}
+      GROUP BY date_trunc('day', c."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE})
+      ORDER BY date_trunc('day', c."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE})
+    `,
+    prisma.$queryRaw<DailyCountRow[]>`
+      SELECT
+        to_char(date_trunc('day', r."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE}), 'YYYY-MM-DD') as date_key,
+        COUNT(*)::integer as count
+      FROM "Repost" r
+      JOIN "Post" p ON r."postId" = p.id
+      WHERE p."authorId" = ${userId}
+        AND r."createdAt" >= ${start}
+      GROUP BY date_trunc('day', r."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE})
+      ORDER BY date_trunc('day', r."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${SERVER_TIME_ZONE})
+    `,
     prisma.post.findMany({
       where: { authorId: userId },
       orderBy: [{ hotScore: "desc" }, { id: "desc" }],
@@ -125,10 +146,10 @@ creatorRouter.get("/dashboard", async (req, res) => {
     })
   ]);
 
-  const postsByDate = countByDate(postsInRange, range);
-  const likesByDate = countByDate(likesInRange, range);
-  const commentsByDate = countByDate(commentsInRange, range);
-  const repostsByDate = countByDate(repostsInRange, range);
+  const postsByDate = fillMissingDays(postsByDateRaw, range);
+  const likesByDate = fillMissingDays(likesByDateRaw, range);
+  const commentsByDate = fillMissingDays(commentsByDateRaw, range);
+  const repostsByDate = fillMissingDays(repostsByDateRaw, range);
 
   const trend = range.map((date) => {
     const posts = postsByDate[date] ?? 0;
