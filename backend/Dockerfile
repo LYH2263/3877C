@@ -2,8 +2,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
-RUN pnpm config set registry https://registry.npmmirror.com
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 RUN mkdir -p /app/uploads
 
